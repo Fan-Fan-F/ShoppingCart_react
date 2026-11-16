@@ -6,7 +6,8 @@ let data = {
       goodsTitle: '南酸枣粒 酸甜解暑',
       goodsSubtitle: '江西特产 五眼果 249g',
       goodsPrice: '25.8',
-      goodsNum: '2',
+      goodsNum: 2,
+      check: true,
     },
     {
       goodsId: '10002',
@@ -14,7 +15,8 @@ let data = {
       goodsTitle: '麻花小辫 迷你酥条',
       goodsSubtitle: '山药小麻花 249g',
       goodsPrice: '88.8',
-      goodsNum: '1',
+      goodsNum: 1,
+      check: true,
     },
     {
       goodsId: '10003',
@@ -22,7 +24,8 @@ let data = {
       goodsTitle: '香菇脆 即食果蔬',
       goodsSubtitle: '江西风味 249g',
       goodsPrice: '100',
-      goodsNum: '10',
+      goodsNum: 10,
+      check: true,
     },
     {
       goodsId: '10004',
@@ -30,46 +33,63 @@ let data = {
       goodsTitle: '酸甜可口 风味独特',
       goodsSubtitle: '菩提圣果 圣果可串手串 220g',
       goodsPrice: '30.5',
-      goodsNum: '5',
+      goodsNum: 5,
+      check: true,
     },
   ],
 }
 
+/**
+ * Rewritten to be immutable and type-consistent.
+ *
+ * Fixes over the original reducer:
+ *  - no in-place mutation of state.list items (Redux anti-pattern);
+ *  - goodsNum is always a number (was initialized as a string, then
+ *    incremented into a number and compared loosely with '0');
+ *  - quantity can no longer go below 0;
+ *  - the default branch returns state unchanged instead of re-checking
+ *    every item on each unrelated action (which silently reset the
+ *    user's selections);
+ *  - the initial `check: true` lives in the initial state itself.
+ */
 export default function (state = data, action) {
   switch (action.type) {
     // 选中商品，如果当前商品数量为0 那么选中之后变为1
     case 'checkGoods':
-      let checkList = state.list
-      checkList.map((item, index) => {
-        if (item.goodsId == action.data){
-          item.check = !item.check
-          item.goodsNum == '0' ? item.goodsNum = '1' : ''
-        }
-      })
-      return Object.assign({}, state, {list: [...checkList]})
+      return {
+        ...state,
+        list: state.list.map((item) => {
+          if (item.goodsId !== action.data) return item
+          const check = !item.check
+          return {
+            ...item,
+            check,
+            goodsNum: check && item.goodsNum === 0 ? 1 : item.goodsNum,
+          }
+        }),
+      }
     // 切换数量
     case 'changeGoodsNum':
-      let changeList = state.list
-      changeList.map((item, index) => {
-        if (item.goodsId == action.data.goodsId) {
-          action.data.status == 'add' ? item.goodsNum++ : item.goodsNum--
-          item.goodsNum == '0' ? item.check = false : '' // 如果当前商品选中并且减到0，自动取消选择
-        }
-      })
-      return Object.assign({}, state, {list: [...changeList]})
+      return {
+        ...state,
+        list: state.list.map((item) => {
+          if (item.goodsId !== action.data.goodsId) return item
+          const delta = action.data.status === 'add' ? 1 : -1
+          const goodsNum = Math.max(0, item.goodsNum + delta) // 不允许减到负数
+          return {
+            ...item,
+            goodsNum,
+            check: goodsNum === 0 ? false : item.check, // 减到0自动取消选择
+          }
+        }),
+      }
     // 全选
     case 'checkAllGoods':
-      let checkAllList = state.list
-      checkAllList.map((item, index) => {
-        item.check = !action.data
-      })
-      return Object.assign({}, state, {list: [...checkAllList]})
+      return {
+        ...state,
+        list: state.list.map((item) => ({ ...item, check: !action.data })),
+      }
     default:
-      // 默认给商品添加一个check 字段、默认所有商品选中
-      let list = state.list
-      list.map((item, index) => {
-        item.check = true
-      })
-      return Object.assign({}, state, {list: [...list]})
+      return state
   }
 }
